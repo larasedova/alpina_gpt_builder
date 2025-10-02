@@ -5,6 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1ad644b9-45a5-425f-b156-213beaf7753e" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/alpina_gpt_builder.iml" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
@@ -22,6 +23,7 @@
       <change afterPath="$PROJECT_DIR$/bots/management/__init__.py" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/bots/management/commands/__init__.py" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/bots/management/commands/create_test_data.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/bots/migrations/0001_initial.py" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/bots/migrations/__init__.py" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/bots/models.py" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/bots/serializers.py" afterDir="false" />
