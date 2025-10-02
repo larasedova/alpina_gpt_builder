@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .endpoint {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+        .method {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .url {
+            font-family: 'Courier New', monospace;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        .description {
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        .links {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ecf0f1;
+        }
+        .btn {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-right: 10px;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #2980b9;
+        }
+        .btn-admin {
+            background: #e74c3c;
+        }
+        .btn-admin:hover {
+            background: #c0392b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 {{ title }}</h1>
+        <p>Добро пожаловать в систему конструктора ботов на основе GPT API!</p>
+
+        <h2>📡 Доступные API Endpoints</h2>
+        {% for endpoint in api_endpoints %}
+        <div class="endpoint">
+            <span class="method">{{ endpoint.methods }}</span>
+            <span class="url">{{ endpoint.url }}</span>
+            <div class="description">{{ endpoint.description }}</div>
+        </div>
+        {% endfor %}
+
+        <div class="links">
+            <a href="/api/root/" class="btn">API Root</a>
+            <a href="/api/bots/" class="btn">Список ботов</a>
+            <a href="/admin/" class="btn btn-admin">Админка</a>
+        </div>
+
+        <div style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+            <h3>🛠 Тестирование API</h3>
+            <p>Для тестирования API вы можете использовать:</p>
+            <ul>
+                <li><strong>Postman</strong> или <strong>Insomnia</strong> для ручного тестирования</li>
+                <li><strong>curl</strong> команды в терминале</li>
+                <li>Встроенный интерфейс Django REST Framework в браузере</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
