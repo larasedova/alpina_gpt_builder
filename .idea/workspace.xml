@@ -5,36 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1ad644b9-45a5-425f-b156-213beaf7753e" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/alpina_gpt_builder.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bot_builder/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bot_builder/asgi.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bot_builder/settings.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bot_builder/urls.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bot_builder/wsgi.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/admin.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/apps.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/management/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/management/commands/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/management/commands/create_test_data.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/migrations/0001_initial.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/migrations/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/models.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/serializers.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/services.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/templates/home.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/urls.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bots/views.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/manage.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/requirements.in" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bots/views.py" beforeDir="false" afterPath="$PROJECT_DIR$/bots/views.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

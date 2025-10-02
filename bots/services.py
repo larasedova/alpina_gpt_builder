@@ -1,5 +1,4 @@
 import openai
-import json
 from django.conf import settings
 from .models import Bot, BotExecution, Step
 

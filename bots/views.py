@@ -1,7 +1,6 @@
-from django.http import JsonResponse
 from django.shortcuts import render
 from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view  # Добавьте api_view здесь!
+from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import Bot, Scenario, Step, BotExecution
@@ -26,7 +25,7 @@ def home(request):
     })
 
 
-@api_view(['GET'])  # Теперь этот декоратор будет работать
+@api_view(['GET'])
 def api_root(request):
     """Корневой endpoint API"""
     return Response({
@@ -79,12 +78,22 @@ class ScenarioViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['bot', 'is_active']
 
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['get', 'post'])
     def steps(self, request, pk=None):
+        """GET/POST для шагов конкретного сценария"""
         scenario = self.get_object()
-        steps = scenario.steps.all()
-        serializer = StepSerializer(steps, many=True)
-        return Response(serializer.data)
+
+        if request.method == 'GET':
+            steps = scenario.steps.all()
+            serializer = StepSerializer(steps, many=True)
+            return Response(serializer.data)
+
+        elif request.method == 'POST':
+            serializer = StepCreateSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save(scenario=scenario)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class StepViewSet(viewsets.ModelViewSet):
