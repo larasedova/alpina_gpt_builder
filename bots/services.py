@@ -1,177 +1,232 @@
-import openai
+# bots/services.py
+import random
+import time
+import json
 from django.conf import settings
-from .models import Bot, BotExecution, Step
 
 
-class GPTService:
-    def __init__(self):
-        self.client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+def generate_gpt_response(messages, bot_config):
+    """
+    ЗАГЛУШКА вместо реального OpenAI API
+    Возвращает интеллектуальные ответы на основе ключевых слов
+    """
+    # Имитируем задержку как у реального API (1-2 секунды)
+    delay = random.uniform(1.0, 2.0)
+    time.sleep(delay)
 
-    def process_message(self, bot: Bot, message: str, user_session: str) -> dict:
-        # Найти или создать выполнение бота
-        execution, created = BotExecution.objects.get_or_create(
-            bot=bot,
-            user_session=user_session,
-            defaults={
-                'scenario': bot.scenarios.filter(is_active=True).first(),
-                'conversation_history': []
-            }
-        )
-
-        # Обновить историю разговора
-        conversation_history = execution.conversation_history
-        conversation_history.append({"role": "user", "content": message})
-
-        try:
-            # Подготовить сообщения для GPT
-            messages = self._prepare_messages(bot, conversation_history)
-
-            # Вызвать GPT API
-            response = self.client.chat.completions.create(
-                model=bot.gpt_model,
-                messages=messages,
-                temperature=bot.temperature,
-                max_tokens=bot.max_tokens
-            )
-
-            # Извлечь ответ
-            gpt_response = response.choices[0].message.content
-
-            # Обновить историю разговора
-            conversation_history.append({"role": "assistant", "content": gpt_response})
-            execution.conversation_history = conversation_history
-            execution.save()
-
-            return {
-                'response': gpt_response,
-                'execution_id': execution.id,
-                'tokens_used': response.usage.total_tokens if response.usage else None
-            }
-
-        except Exception as e:
-            # В случае ошибки вернуть сообщение об ошибке
-            conversation_history.append(
-                {"role": "assistant", "content": "Извините, произошла ошибка. Пожалуйста, попробуйте позже."})
-            execution.conversation_history = conversation_history
-            execution.save()
-
-            raise e
-
-    def _prepare_messages(self, bot: Bot, conversation_history: list) -> list:
-        messages = []
-
-        # Добавить системный промпт
-        if bot.system_prompt:
-            messages.append({"role": "system", "content": bot.system_prompt})
-
-        # Добавить историю разговора
-        messages.extend(conversation_history)
-
-        return messages
-
-    def execute_scenario_step(self, execution: BotExecution, user_input: str = None) -> dict:
-        """Выполнить шаг сценария"""
-        current_step = execution.current_step
-
-        if not current_step:
-            # Начать с начального шага сценария
-            current_step = execution.scenario.initial_step
-            if not current_step:
-                return {
-                    'response': 'Сценарий не имеет начального шага.',
-                    'is_completed': True
-                }
-
-        # Обработать шаг в зависимости от его типа
-        step_result = self._process_step(current_step, user_input, execution)
-
-        # Перейти к следующему шагу или завершить
-        if step_result.get('next_step'):
-            execution.current_step = step_result['next_step']
-        elif not step_result.get('has_next_step', True):
-            execution.is_completed = True
-
-        execution.save()
-
-        return step_result
-
-    def _process_step(self, step: Step, user_input: str, execution: BotExecution) -> dict:
-        """Обработать конкретный шаг сценария"""
-        step_type = step.step_type
-        content = step.content
-
-        if step_type == 'message':
-            return self._process_message_step(content)
-        elif step_type == 'question':
-            return self._process_question_step(content, user_input, step)
-        elif step_type == 'condition':
-            return self._process_condition_step(content, user_input, step)
-        elif step_type == 'api_call':
-            return self._process_api_call_step(content, execution)
+    # Получаем последнее сообщение пользователя
+    user_message = ""
+    if messages and len(messages) > 0:
+        if isinstance(messages[-1], dict):
+            user_message = messages[-1].get("content", "").lower()
         else:
-            return {
-                'response': 'Неизвестный тип шага.',
-                'is_completed': True
-            }
+            user_message = str(messages[-1]).lower()
 
-    def _process_message_step(self, content: dict) -> dict:
-        """Обработать шаг-сообщение"""
-        return {
-            'response': content.get('message', ''),
-            'next_step': None,  # Будет определено из next_step поля модели
-            'has_next_step': True
-        }
+    # Извлекаем конфигурацию бота
+    system_prompt = bot_config.get("system_prompt", "").lower()
+    bot_type = bot_config.get("bot_type", "chat")
 
-    def _process_question_step(self, content: dict, user_input: str, step: Step) -> dict:
-        """Обработать шаг-вопрос"""
-        if user_input is None:
-            # Первый вызов - задать вопрос
-            return {
-                'response': content.get('question', ''),
-                'wait_for_input': True,
-                'has_next_step': False  # Ждем ответ пользователя
-            }
-        else:
-            # Обработать ответ пользователя
-            # Здесь можно добавить логику валидации ответа
-            return {
-                'response': content.get('response_template', '').format(user_input=user_input),
-                'next_step': step.next_step,
-                'has_next_step': step.next_step is not None
-            }
+    # Определяем тип бота и подбираем соответствующие ответы
+    if "поддержк" in system_prompt or "support" in system_prompt:
+        return _generate_support_response(user_message)
+    elif "обучен" in system_prompt or "education" in system_prompt:
+        return _generate_education_response(user_message)
+    elif "продаж" in system_prompt or "sale" in system_prompt:
+        return _generate_sales_response(user_message)
+    elif "консульт" in system_prompt or "consult" in system_prompt:
+        return _generate_consultation_response(user_message)
+    else:
+        return _generate_general_response(user_message)
 
-    def _process_condition_step(self, content: dict, user_input: str, step: Step) -> dict:
-        """Обработать шаг-условие"""
-        # Простая реализация условий на основе ключевых слов
-        conditions = content.get('conditions', {})
-        user_input_lower = user_input.lower() if user_input else ''
 
-        for condition, next_step_id in conditions.items():
-            if condition.lower() in user_input_lower:
-                try:
-                    next_step = Step.objects.get(id=next_step_id)
-                    return {
-                        'response': content.get('responses', {}).get(condition, ''),
-                        'next_step': next_step,
-                        'has_next_step': True
-                    }
-                except Step.DoesNotExist:
-                    continue
+def _generate_support_response(user_message):
+    """Ответы для бота поддержки"""
+    if any(word in user_message for word in ["привет", "здравств", "hello", "hi"]):
+        responses = [
+            "Здравствуйте! Служба поддержки Alpina Digital к вашим услугам. Чем могу помочь?",
+            "Добрый день! Рады вас слышать. Опишите, пожалуйста, вашу проблему.",
+            "Приветствую! Техническая поддержка на связи. Чем можем помочь?"
+        ]
+        return random.choice(responses)
 
-        # Если ни одно условие не выполнено
-        default_response = content.get('default_response', 'Не понимаю ваш ответ.')
-        return {
-            'response': default_response,
-            'next_step': step.next_step,  # Повторить текущий шаг или перейти к следующему
-            'has_next_step': step.next_step is not None
-        }
+    elif any(word in user_message for word in ["проблем", "ошибк", "не работ", "сломал"]):
+        responses = [
+            "Понимаю вашу проблему. Давайте разберемся по шагам. Опишите подробнее, что произошло?",
+            "Сожалею о возникших неудобствах. Наши специалисты уже работают над решением. Уточните детали проблемы.",
+            "Понимаю ситуацию. Для быстрого решения рекомендую: 1) Проверить подключение 2) Обновить страницу 3) Очистить кеш. Помогло?"
+        ]
+        return random.choice(responses)
 
-    def _process_api_call_step(self, content: dict, execution: BotExecution) -> dict:
-        """Обработать шаг с API вызовом"""
-        # Здесь можно реализовать вызов внешних API
-        # Пока возвращаем заглушку
-        return {
-            'response': content.get('success_message', 'API вызов выполнен.'),
-            'next_step': None,
-            'has_next_step': True
-        }
+    elif any(word in user_message for word in ["как настроит", "инструкц", "руководств"]):
+        responses = [
+            "Для настройки рекомендую воспользоваться нашим руководством: docs.alpina.digital. Нужна помощь с конкретным шагом?",
+            "У нас есть подробная инструкция по настройке. Какой именно этап вызывает затруднения?",
+            "Могу провести вас по шагам настройки. С чего начнем?"
+        ]
+        return random.choice(responses)
+
+    else:
+        responses = [
+            "Понимаю ваш запрос. Для более точного решения рекомендую обратиться в поддержку через тикет-систему.",
+            "Зафиксировал ваше обращение. Наш специалист свяжется с вами в ближайшее время.",
+            "Спасибо за обращение! Мы уже работаем над вашим вопросом."
+        ]
+        return random.choice(responses)
+
+
+def _generate_education_response(user_message):
+    """Ответы для образовательного бота"""
+    if any(word in user_message for word in ["привет", "здравств", "начать", "start"]):
+        responses = [
+            "Добро пожаловать в образовательную платформу Alpina Digital! Готовы начать обучение?",
+            "Приветствую! Я ваш помощник в мире знаний. С чего начнем наше обучение?",
+            "Здравствуйте! Рад помочь с выбором курсов и обучением. Что вас интересует?"
+        ]
+        return random.choice(responses)
+
+    elif any(word in user_message for word in ["курс", "обучен", "программ", "тренинг"]):
+        responses = [
+            "У нас есть курсы по: 1) Цифровой трансформации 2) Управлению проектами 3) AI технологиям 4) Лидерству. Что выбрать?",
+            "Alpina Digital предлагает более 50 курсов по разным направлениям. Расскажите о ваших целях - подберу оптимальный вариант!",
+            "Отличный выбор! Рекомендую начать с базового курса 'Цифровая грамотность', затем перейти к специализированным темам."
+        ]
+        return random.choice(responses)
+
+    elif any(word in user_message for word in ["сложн", "трудно", "не понимаю", "помоги"]):
+        responses = [
+            "Понимаю, что некоторые темы могут быть сложными. Давайте разберем материал вместе - что именно вызывает затруднения?",
+            "Не переживайте! Обучение - это процесс. Рекомендую: 1) Повторить теорию 2) Выполнить практическое задание 3) Обратиться к ментору",
+            "Сложности - это нормально! Наши эксперты готовы помочь. Хотите записаться на консультацию?"
+        ]
+        return random.choice(responses)
+
+    else:
+        responses = [
+            "Образование - ключ к успеху! Какой навык вы хотите развить?",
+            "Готов помочь с вашим обучением. Расскажите о ваших образовательных целях!",
+            "Вместе мы найдем оптимальный путь обучения. Что вас интересует в первую очередь?"
+        ]
+        return random.choice(responses)
+
+
+def _generate_sales_response(user_message):
+    """Ответы для бота продаж"""
+    if any(word in user_message for word in ["цена", "стоим", "куп", "заказ", "стоит"]):
+        responses = [
+            "Стоимость зависит от выбранного пакета услуг. Базовый - от 50,000 руб./мес, Про - от 100,000 руб./мес. Интересует детали?",
+            "У нас гибкая система ценообразования. Для точного расчета нужна информация о ваших потребностях. Расскажите о проекте!",
+            "Предлагаем бесплатную консультацию для подбора оптимального решения. Когда вам удобно пообщаться?"
+        ]
+        return random.choice(responses)
+
+    elif any(word in user_message for word in ["возможност", "функци", "умеет", "может"]):
+        responses = [
+            "Наша платформа умеет: создавать AI-ботов, настраивать сценарии обучения, анализировать прогресс, генерировать отчеты. Что интересует?",
+            "Основные функции: 1) Конструктор ботов 2) Система обучения 3) Аналитика 4) Интеграции с корп. системами. Хотите демонстрацию?",
+            "Мы предлагаем полный цикл цифрового обучения с AI-помощниками. Готов показать возможности на живом примере!"
+        ]
+        return random.choice(responses)
+
+    else:
+        responses = [
+            "Alpina Digital поможет трансформировать обучение в вашей компании! Хотите узнать, как?",
+            "Готов ответить на все вопросы о наших решениях. Что вас интересует?",
+            "Давайте подберем решение для вашего бизнеса! Сколько сотрудников в вашей компании?"
+        ]
+        return random.choice(responses)
+
+
+def _generate_consultation_response(user_message):
+    """Ответы для консультационного бота"""
+    return _generate_general_response(user_message)
+
+
+def _generate_general_response(user_message):
+    """Общие ответы для любого бота"""
+    if any(word in user_message for word in ["привет", "здравств", "hello", "hi", "хай"]):
+        responses = [
+            "Привет! Я AI-помощник Alpina Digital. Рад вас видеть!",
+            "Здравствуйте! Готов помочь с вашими вопросами.",
+            "Добрый день! Чем могу быть полезен?"
+        ]
+        return random.choice(responses)
+
+    elif any(word in user_message for word in ["как дела", "как ты", "how are you"]):
+        responses = [
+            "Всё отлично! Готов помогать вам с вопросами обучения и технологий.",
+            "Прекрасно! Тем более, когда есть возможность помочь таким интересным людям как вы!",
+            "Отлично! Готов к продуктивной работе. А у вас как дела?"
+        ]
+        return random.choice(responses)
+
+    elif any(word in user_message for word in ["спасибо", "благодар", "thanks", "thank you"]):
+        responses = [
+            "Пожалуйста! Всегда рад помочь!",
+            "Обращайтесь! Буду рад помочь снова.",
+            "Не стоит благодарности! Удачи в ваших проектах!"
+        ]
+        return random.choice(responses)
+
+    elif any(word in user_message for word in ["пока", "до свидан", "bye", "goodbye"]):
+        responses = [
+            "До свидания! Хорошего дня!",
+            "Всего наилучшего! Возвращайтесь с новыми вопросами!",
+            "Пока! Буду ждать наших следующих встреч!"
+        ]
+        return random.choice(responses)
+
+    elif any(word in user_message for word in ["alpina", "альпина", "компани", "о вас"]):
+        responses = [
+            "Alpina Digital - лидер в области цифрового корпоративного обучения с использованием AI технологий.",
+            "Мы создаем инновационные решения для обучения сотрудников с 2020 года.",
+            "Alpina Digital помогает компаниям внедрять современные образовательные технологии."
+        ]
+        return random.choice(responses)
+
+    elif any(word in user_message for word in ["бот", "создат", "настроит", "конструктор"]):
+        responses = [
+            "В нашем конструкторе ботов вы можете создать AI-помощника за 5 шагов! Хотите попробовать?",
+            "Для создания бота нужно: 1) Выбрать тип 2) Настроить сценарий 3) Обучить на данных 4) Запустить. Помочь?",
+            "У нас есть готовые шаблоны ботов для разных задач. Какую задачу должен решать ваш бот?"
+        ]
+        return random.choice(responses)
+
+    else:
+        # Умные ответы на неизвестные вопросы
+        responses = [
+            "Интересный вопрос! Давайте разберем его подробнее. Что именно вас интересует?",
+            "Понял ваш запрос. Для точного ответа мне нужно больше контекста. Можете рассказать подробнее?",
+            "Хороший вопрос! В системе Alpina Digital есть решения для подобных задач. Уточните детали?",
+            "Понимаю направление ваших мыслей. Давайте обсудим этот вопрос более предметно!",
+            "Отличный запрос! Рекомендую обратиться к нашему эксперту для детального разбора.",
+            "Интересная тема! У нас есть материалы по этому вопросу. Хотите, чтобы я подобрал их для вас?",
+            "Спасибо за такой содержательный вопрос! Давайте разберем его по пунктам.",
+            "Понимаю ваш интерес к этой теме. Могу предложить несколько вариантов решения.",
+            "Замечательный вопрос! Для полного ответа мне нужно понять контекст вашей задачи.",
+            "Ух ты, интересно! Давайте обсудим этот вопрос с разных сторон."
+        ]
+        return random.choice(responses)
+
+
+def validate_gpt_config(bot_config):
+    """
+    Заглушка для валидации конфигурации GPT
+    Всегда возвращает успех в демо-режиме
+    """
+    return {
+        "valid": True,
+        "message": "Конфигурация корректна (работаем в демо-режиме)",
+        "warnings": []
+    }
+
+
+def test_gpt_connection(api_key=None):
+    """
+    Заглушка для тестирования подключения к GPT
+    Всегда возвращает успех в демо-режиме
+    """
+    return {
+        "success": True,
+        "message": "Демо-режим активен. Подключение к GPT не требуется.",
+        "model": "alpina-demo-gpt"
+    }

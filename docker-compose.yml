@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: alpina_web
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             gunicorn --bind 0.0.0.0:8000 --workers 3 bot_builder.wsgi:application"
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgres://alpina_user:alpina_password@db:5432/alpina_db
+    expose:
+      - "8000"
+    depends_on:
+      - db
+    restart: unless-stopped
+    networks:
+      - alpina_network
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: alpina_nginx
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - web
+    restart: unless-stopped
+    networks:
+      - alpina_network
+
+  db:
+    image: postgres:15-alpine
+    container_name: alpina_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_DB=alpina_db
+      - POSTGRES_USER=alpina_user
+      - POSTGRES_PASSWORD=alpina_password
+    restart: unless-stopped
+    networks:
+      - alpina_network
+
+volumes:
+  postgres_data:
+  static_volume:
+  media_volume:
+
+networks:
+  alpina_network:
+    driver: bridge

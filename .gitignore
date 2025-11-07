@@ -1,20 +1,32 @@
-# Django
-*.log
-*.pot
-*.pyc
-__pycache__/
-local_settings.py
-db.sqlite3
-media/
-
-# Environment
+# Environment variables
 .env
-.venv
+.env.*
+!.env.example
+.env.production
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.pot
+
+# Virtual environments
+.venv/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+staticfiles/
+media/
 
 # IDE
 .vscode/
@@ -27,4 +39,5 @@ venv.bak/
 Thumbs.db
 
 # Database
-*.db".idea/" 
+*.sqlite3
+*.db
