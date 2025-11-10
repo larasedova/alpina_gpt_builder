@@ -230,4 +230,3 @@ jobs:
           sleep 30
           docker-compose ps
           docker-compose logs web
-          
