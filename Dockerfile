@@ -26,7 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Создаем статические файлы
-RUN python manage.py collectstatic --noinput
+#RUN python manage.py collectstatic --noinput
 
 # Создаем пользователя для безопасности
 RUN useradd -m -r django && chown -R django /app
