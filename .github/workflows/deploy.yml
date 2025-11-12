@@ -3,7 +3,7 @@ name: Build and Deploy to VPS
 # Триггер: деплой при пуше в ветку main
 on:
   push:
-    branches: [ main ] # Обычно используется main, а не master
+    branches: [ main ]
 
 env:
   REGISTRY: ghcr.io
@@ -57,11 +57,9 @@ jobs:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         key: ${{ secrets.VPS_SSH_KEY }}
-        # Используем script_stop для остановки выполнения при ошибке
         script_stop: true
         script: |
           # --- ШАГИ ДЛЯ "ИДЕАЛЬНОГО" ДЕПЛОЯ ---
-
           # 1. Создание директории, если её нет
           VPS_DIR="/opt/alpina_gpt_builder"
           if [ ! -d "$VPS_DIR" ]; then
@@ -73,9 +71,8 @@ jobs:
             echo "Директория $VPS_DIR уже существует. Продолжаю..."
             cd $VPS_DIR
           fi
-
+          
           # 2. Создание/обновление docker-compose.yml (с SQLite и томами)
-          # Используем cat с одинарными кавычками и экранированием
           cat > docker-compose.yml << 'EOF'
 services:
   web:
@@ -104,8 +101,7 @@ volumes:
 EOF
           echo "Файл docker-compose.yml создан/обновлен."
 
-          # 3. Создание/обновление nginx.conf (с правильным экранированием)
-          # Экранируем одинарные кавычки в nginx.conf, заменив "'" на "'\''"
+          # 3. Создание/обновление nginx.conf
           cat > nginx.conf << 'EOF'
 events {
     worker_connections 1024;
@@ -135,23 +131,22 @@ http {
 
     # Upstream для Django приложения
     upstream django {
-        server web:8000; # Имя сервиса из docker-compose.yml
+        server web:8000;
     }
 
     # HTTP сервер
     server {
         listen 80;
-        server_name _; # Или укажите конкретный домен/IP
+        server_name _;
 
-        # Статические файлы - путь должен совпадать с STATIC_ROOT в settings.py
-        # И должен быть смонтирован как том в docker-compose.yml
+        # Статические файлы
         location /static/ {
-            alias /app/staticfiles/; # Путь внутри контейнера nginx, смонтированный из тома
+            alias /app/staticfiles/;
             expires 1y;
             add_header Cache-Control "public, immutable";
         }
 
-        # Медиа файлы (если используются)
+        # Медиа файлы
         location /media/ {
             alias /app/media/;
             expires 1y;
@@ -202,8 +197,6 @@ EOF
           echo "Новые образы скачаны."
 
           # 7. Применение миграций (ВАЖНО!)
-          # Запускаем миграции в новом контейнере на основе образа сервиса web
-          # --rm удаляет контейнер после завершения
           docker-compose run --rm web python manage.py migrate --noinput
           if [ $? -ne 0 ]; then
             echo "Ошибка при выполнении миграций"
@@ -212,7 +205,6 @@ EOF
           echo "Миграции применены."
 
           # 8. Сборка статических файлов (ВАЖНО!)
-          # Собираем статику в новом контейнере на основе образа сервиса web
           docker-compose run --rm web python manage.py collectstatic --noinput --clear
           if [ $? -ne 0 ]; then
             echo "Ошибка при сборке статических файлов"
