@@ -1,44 +1,45 @@
-name: Build, Push and Deploy
+name: Build and Deploy to VPS
 
+# Триггер: деплой при пуше в ветку main
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ] # Обычно используется main, а не master
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
     steps:
-    - name: Checkout repository
+    # 1. Checkout репозитория
+    - name: Checkout code
       uses: actions/checkout@v4
 
+    # 2. Установка Docker Buildx
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Log in to Container Registry
+    # 3. Логин в GitHub Container Registry
+    - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
         registry: ${{ env.REGISTRY }}
         username: ${{ github.actor }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
+    # 4. Извлечение метаданных для тегов
     - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
-          type=ref,event=branch
+          type=raw,value=latest
           type=sha,prefix={{branch}}-
-          latest
 
+    # 5. Сборка и публикация Docker-образа
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
@@ -49,192 +50,187 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build-and-push
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
+    # 6. Деплой на VPS
     - name: Deploy to VPS
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         key: ${{ secrets.VPS_SSH_KEY }}
+        # Используем script_stop для остановки выполнения при ошибке
+        script_stop: true
         script: |
-          # Создаем директорию проекта
-          mkdir -p /opt/alpina_gpt_builder
-          cd /opt/alpina_gpt_builder
-          
-          # Создаем необходимые файлы
+          # --- ШАГИ ДЛЯ "ИДЕАЛЬНОГО" ДЕПЛОЯ ---
+
+          # 1. Создание директории, если её нет
+          VPS_DIR="/opt/alpina_gpt_builder"
+          if [ ! -d "$VPS_DIR" ]; then
+            echo "Создаю директорию $VPS_DIR..."
+            mkdir -p $VPS_DIR
+            cd $VPS_DIR
+            echo "Директория создана."
+          else
+            echo "Директория $VPS_DIR уже существует. Продолжаю..."
+            cd $VPS_DIR
+          fi
+
+          # 2. Создание/обновление docker-compose.yml (с SQLite и томами)
           cat > docker-compose.yml << 'EOF'
-          version: '3.8'
-          
-          services:
-            web:
-              image: ghcr.io/larasedova/alpina_gpt_builder:latest
-              container_name: alpina_web
-              command: >
-                sh -c "python manage.py migrate --noinput &&
-                       gunicorn --bind 0.0.0.0:8000 bot_builder.wsgi:application"
-              env_file:
-                - .env
-              volumes:
-                - static_volume:/app/staticfiles
-                - media_volume:/app/media
-              expose:
-                - "8000"
-              depends_on:
-                - db
-              restart: unless-stopped
-              networks:
-                - alpina_network
-          
-            db:
-              image: postgres:15-alpine
-              container_name: alpina_db
-              environment:
-                POSTGRES_DB: alpina_db
-                POSTGRES_USER: alpina_user
-                POSTGRES_PASSWORD: alpina_password123
-              volumes:
-                - postgres_data:/var/lib/postgresql/data
-              restart: unless-stopped
-              networks:
-                - alpina_network
-          
-            nginx:
-              image: nginx:1.25-alpine
-              container_name: alpina_nginx
-              volumes:
-                - ./nginx.conf:/etc/nginx/nginx.conf
-                - static_volume:/app/staticfiles:ro
-                - media_volume:/app/media:ro
-              ports:
-                - "80:80"
-              depends_on:
-                - web
-              restart: unless-stopped
-              networks:
-                - alpina_network
-          
-          volumes:
-            postgres_data:
-            static_volume:
-            media_volume:
-          
-          networks:
-            alpina_network:
-              driver: bridge
-          EOF
-          
-          # Создаем nginx.conf
+services:
+  web:
+    image: ghcr.io/larasedova/alpina_gpt_builder:latest
+    env_file:
+      - .env
+    volumes:
+      - static_volume:/app/staticfiles/
+      - sqlite_db_volume:/app/db.sqlite3
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - static_volume:/app/staticfiles/:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+    restart: unless-stopped
+
+volumes:
+  static_volume:
+  sqlite_db_volume:
+EOF
+          echo "Файл docker-compose.yml создан/обновлен."
+
+          # 3. Создание/обновление nginx.conf
           cat > nginx.conf << 'EOF'
-          events {
-              worker_connections 1024;
-          }
-          
-          http {
-              include /etc/nginx/mime.types;
-              default_type application/octet-stream;
-          
-              log_format main '$remote_addr - $remote_user [$time_local] "$request" '
-                              '$status $body_bytes_sent "$http_referer" '
-                              '"$http_user_agent" "$http_x_forwarded_for"';
-          
-              access_log /var/log/nginx/access.log main;
-              error_log /var/log/nginx/error.log;
-          
-              sendfile on;
-              tcp_nopush on;
-              tcp_nodelay on;
-              keepalive_timeout 65;
-              types_hash_max_size 2048;
-          
-              gzip on;
-              gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-          
-              upstream django {
-                  server web:8000;
-              }
-          
-              server {
-                  listen 80;
-                  server_name _;
-          
-                  client_max_body_size 100M;
-          
-                  location /static/ {
-                      alias /app/staticfiles/;
-                      expires 1y;
-                      add_header Cache-Control "public, immutable";
-                      access_log off;
-                  }
-          
-                  location /media/ {
-                      alias /app/media/;
-                      expires 1y;
-                      add_header Cache-Control "public, immutable";
-                      access_log off;
-                  }
-          
-                  location / {
-                      proxy_pass http://django;
-                      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                      proxy_set_header X-Forwarded-Proto $scheme;
-                      proxy_set_header Host $host;
-                      proxy_redirect off;
-          
-                      proxy_connect_timeout 60s;
-                      proxy_send_timeout 60s;
-                      proxy_read_timeout 60s;
-          
-                      proxy_set_header X-Real-IP $remote_addr;
-                      proxy_set_header X-Forwarded-Host $server_name;
-                  }
-          
-                  location /health/ {
-                      access_log off;
-                      return 200 "healthy\n";
-                      add_header Content-Type text/plain;
-                  }
-              }
-          }
-          EOF
-          
-          # Создаем .env файл
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    # Логирование
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log /var/log/nginx/access.log main;
+    error_log /var/log/nginx/error.log;
+
+    # Основные настройки
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    # Gzip сжатие
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    # Upstream для Django приложения
+    upstream django {
+        server web:8000; # Имя сервиса из docker-compose.yml
+    }
+
+    # HTTP сервер
+    server {
+        listen 80;
+        server_name _; # Или укажите конкретный домен/IP
+
+        # Статические файлы - путь должен совпадать с STATIC_ROOT в settings.py
+        # И должен быть смонтирован как том в docker-compose.yml
+        location /static/ {
+            alias /app/staticfiles/; # Путь внутри контейнера nginx, смонтированный из тома
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # Медиа файлы (если используются)
+        location /media/ {
+            alias /app/media/; # Убедитесь, что этот путь существует и смонтирован при необходимости
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # Django приложение
+        location / {
+            proxy_pass http://django;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Host $host;
+            proxy_redirect off;
+
+            # Таймауты
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+    }
+}
+EOF
+          echo "Файл nginx.conf создан/обновлен."
+
+          # 4. Создание/обновление .env (с учётом заглушки OpenAI)
           cat > .env << EOF
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          DEBUG=False
-          ALLOWED_HOSTS=${{ secrets.VPS_HOST }},localhost,127.0.0.1
-          OPENAI_API_KEY=demo-mode-no-key-required
-          DB_NAME=alpina_db
-          DB_USER=alpina_user
-          DB_PASSWORD=alpina_password123
-          DB_HOST=db
-          DB_PORT=5432
-          REDIS_URL=redis://redis:6379/0
-          EOF
-          
-          # Логинимся в GitHub Container Registry
-          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          
-          # Останавливаем старые контейнеры
-          docker-compose down || true
-          
-          # Удаляем старый образ (опционально, для экономии места)
-          docker image prune -f
-          
-          # Запускаем контейнеры
+SECRET_KEY=${{ secrets.SECRET_KEY }}
+DEBUG=False
+ALLOWED_HOSTS=${{ secrets.VPS_HOST }},localhost,127.0.0.1
+OPENAI_API_KEY=demo-mode-no-key-required
+EOF
+          echo "Файл .env создан/обновлен."
+
+          # 5. Логин в GHCR на VPS
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          if [ $? -ne 0 ]; then
+            echo "Ошибка авторизации в ${{ env.REGISTRY }}"
+            exit 1
+          fi
+          echo "Успешно авторизован в ${{ env.REGISTRY }}."
+
+          # 6. Скачивание нового образа
           docker-compose pull
-          docker-compose up -d
-          
-          # Ждем запуска и выполняем миграции
-          sleep 30
-          docker exec alpina_web python manage.py migrate --noinput
+          if [ $? -ne 0 ]; then
+            echo "Ошибка при скачивании образов"
+            exit 1
+          fi
+          echo "Новые образы скачаны."
+
+          # 7. Применение миграций (ВАЖНО!)
+          # Запускаем миграции в контейнере web
+          # Имя контейнера: <директория>_<сервис>_1 -> alpina_gpt_builder_web_1
+          # Используем docker-compose exec для правильного имени
+          docker-compose exec -T web python manage.py migrate --noinput
+          if [ $? -ne 0 ]; then
+            echo "Ошибка при выполнении миграций"
+            exit 1
+          fi
+          echo "Миграции применены."
+
+          # 8. Сборка статических файлов (ВАЖНО!)
+          # Собираем статику в контейнере web
+          docker-compose exec -T web python manage.py collectstatic --noinput --clear
+          if [ $? -ne 0 ]; then
+            echo "Ошибка при сборке статических файлов"
+            exit 1
+          fi
+          echo "Статические файлы собраны."
+
+          # 9. Запуск/перезапуск контейнеров
+          docker-compose up -d --force-recreate
+          if [ $? -ne 0 ]; then
+            echo "Ошибка при запуске контейнеров"
+            exit 1
+          fi
+          echo "Контейнеры запущены/перезапущены."
+
+          # 10. Очистка старых образов (опционально)
+          docker image prune -f
+
+          echo "Деплой завершён успешно!"
           
           # Проверяем статус
           docker-compose ps
