@@ -7,12 +7,39 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-default-key-change-in-production')
+# ===== БЕЗОПАСНОСТЬ =====
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY must be set in environment variables")
 
-DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
+# ===== БАЗА ДАННЫХ =====
+# Используем PostgreSQL в продакшене, SQLite в разработке
+if not DEBUG:
+    # ПРОДАКШЕН - PostgreSQL
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME', 'alpina_db'),
+            'USER': os.getenv('DB_USER', 'alpina_user'),
+            'PASSWORD': os.getenv('DB_PASSWORD', 'alpina_password123'),
+            'HOST': os.getenv('DB_HOST', 'db'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
+    }
+else:
+    # РАЗРАБОТКА - SQLite
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
+# ===== ПРИЛОЖЕНИЯ И МИДДЛВАРЫ =====
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -27,7 +54,7 @@ INSTALLED_APPS = [
     'django_filters',
 
     # Local apps
-    'bots.apps.BotsConfig',  # Используем конфиг приложения
+    'bots.apps.BotsConfig',
 ]
 
 MIDDLEWARE = [
@@ -43,6 +70,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'bot_builder.urls'
 
+# ===== ШАБЛОНЫ =====
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -61,13 +89,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'bot_builder.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
+# ===== ПАРОЛИ =====
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -83,11 +105,13 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# ===== ИНТЕРНАЦИОНАЛИЗАЦИЯ =====
 LANGUAGE_CODE = 'ru-ru'
 TIME_ZONE = 'Europe/Moscow'
 USE_I18N = True
 USE_TZ = True
 
+# ===== СТАТИЧЕСКИЕ ФАЙЛЫ =====
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
@@ -96,6 +120,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ===== DRF НАСТРОЙКИ =====
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -109,9 +134,49 @@ REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
 }
 
+# ===== CORS НАСТРОЙКИ =====
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
 
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+# ===== OPENAI =====
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', 'demo-mode-no-key-required')
+
+# ===== БЕЗОПАСНОСТЬ ДЛЯ ПРОДАКШЕНА =====
+if not DEBUG:
+    # HTTPS настройки
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+
+    # CSRF настройки
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+
+CSRF_TRUSTED_ORIGINS = [
+                           f"http://{host}" for host in ALLOWED_HOSTS
+                       ] + [
+                           f"https://{host}" for host in ALLOWED_HOSTS
+                       ]
+
+# ===== ЛОГИРОВАНИЕ ДЛЯ ПРОДАКШЕНА =====
+if not DEBUG:
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'file': {
+                'level': 'ERROR',
+                'class': 'logging.FileHandler',
+                'filename': BASE_DIR / 'django_errors.log',
+            },
+        },
+        'loggers': {
+            'django': {
+                'handlers': ['file'],
+                'level': 'ERROR',
+                'propagate': True,
+            },
+        },
+    }

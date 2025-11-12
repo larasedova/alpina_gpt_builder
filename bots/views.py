@@ -165,7 +165,7 @@ class BotExecutionViewSet(viewsets.ModelViewSet):
     """
     API endpoint для просмотра истории выполнений
     """
-    queryset = BotExecution.objects.all().order_by('-started_at')
+    queryset = BotExecution.objects.all().order_by('-created_at')
     serializer_class = BotExecutionSerializer
 
     def get_queryset(self):

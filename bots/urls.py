@@ -10,6 +10,6 @@ router.register(r'executions', views.BotExecutionViewSet)
 
 urlpatterns = [
     path('api/', include(router.urls)),
-    path('api/root/', views.api_root, name='api-root'),
-    path('', views.home, name='home'),
+    #path('api/root/', views.api_root, name='api-root'),
+    #path('', views.home, name='home'),
 ]
