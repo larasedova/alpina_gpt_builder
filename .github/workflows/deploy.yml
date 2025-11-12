@@ -75,6 +75,7 @@ jobs:
           fi
 
           # 2. Создание/обновление docker-compose.yml (с SQLite и томами)
+          # Используем cat с одинарными кавычками и экранированием
           cat > docker-compose.yml << 'EOF'
 services:
   web:
@@ -103,7 +104,8 @@ volumes:
 EOF
           echo "Файл docker-compose.yml создан/обновлен."
 
-          # 3. Создание/обновление nginx.conf
+          # 3. Создание/обновление nginx.conf (с правильным экранированием)
+          # Экранируем одинарные кавычки в nginx.conf, заменив "'" на "'\''"
           cat > nginx.conf << 'EOF'
 events {
     worker_connections 1024;
@@ -151,7 +153,7 @@ http {
 
         # Медиа файлы (если используются)
         location /media/ {
-            alias /app/media/; # Убедитесь, что этот путь существует и смонтирован при необходимости
+            alias /app/media/;
             expires 1y;
             add_header Cache-Control "public, immutable";
         }
@@ -200,10 +202,9 @@ EOF
           echo "Новые образы скачаны."
 
           # 7. Применение миграций (ВАЖНО!)
-          # Запускаем миграции в контейнере web
-          # Имя контейнера: <директория>_<сервис>_1 -> alpina_gpt_builder_web_1
-          # Используем docker-compose exec для правильного имени
-          docker-compose exec -T web python manage.py migrate --noinput
+          # Запускаем миграции в новом контейнере на основе образа сервиса web
+          # --rm удаляет контейнер после завершения
+          docker-compose run --rm web python manage.py migrate --noinput
           if [ $? -ne 0 ]; then
             echo "Ошибка при выполнении миграций"
             exit 1
@@ -211,8 +212,8 @@ EOF
           echo "Миграции применены."
 
           # 8. Сборка статических файлов (ВАЖНО!)
-          # Собираем статику в контейнере web
-          docker-compose exec -T web python manage.py collectstatic --noinput --clear
+          # Собираем статику в новом контейнере на основе образа сервиса web
+          docker-compose run --rm web python manage.py collectstatic --noinput --clear
           if [ $? -ne 0 ]; then
             echo "Ошибка при сборке статических файлов"
             exit 1
@@ -231,7 +232,7 @@ EOF
           docker image prune -f
 
           echo "Деплой завершён успешно!"
-          
+
           # Проверяем статус
           docker-compose ps
           echo "✅ Деплой завершен!"
