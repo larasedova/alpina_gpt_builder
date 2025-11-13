@@ -1,63 +1,10 @@
-name: Build and Deploy to VPS
-
-# Триггер: деплой при пуше в ветку main
-on:
-  push:
-    branches: [ main ]
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      # 1. Checkout репозитория
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # 2. Установка Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      # 3. Логин в GitHub Container Registry
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      # 4. Извлечение метаданных для тегов
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=sha,prefix={{branch}}-
-
-      # 5. Сборка и публикация Docker-образа
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # 6. Деплой на VPS
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          script_stop: true # Остановить выполнение скрипта при ошибке
+          script_stop: true
           script: |
             # --- ШАГИ ДЛЯ "ИДЕАЛЬНОГО" ДЕПЛОЯ ---
             # 0. Установка Docker и Docker Compose (если не установлены)
@@ -65,15 +12,12 @@ jobs:
               echo "Устанавливаю Docker..."
               curl -fsSL https://get.docker.com -o get-docker.sh
               sh get-docker.sh
-              # usermod -aG docker $USER # Не всегда работает в контексте ssh-action
-              # Лучше запустить под root, если root
             fi
 
             if ! command -v docker-compose &> /dev/null; then
               echo "Устанавливаю Docker Compose..."
               curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
               chmod +x /usr/local/bin/docker-compose
-              # Убедимся, что /usr/bin/docker-compose тоже указывает на правильный бинарник
               ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
             fi
 
@@ -85,132 +29,115 @@ jobs:
             VPS_DIR="/opt/alpina_gpt_builder"
             if [ ! -d "$VPS_DIR" ]; then
               echo "Создаю директорию $VPS_DIR..."
-              mkdir -p $VPS_DIR
-              cd $VPS_DIR
+              mkdir -p "$VPS_DIR"
+              cd "$VPS_DIR"
               echo "Директория создана."
             else
               echo "Директория $VPS_DIR уже существует. Продолжаю..."
-              cd $VPS_DIR
+              cd "$VPS_DIR"
             fi
 
             # 2. Создание/обновление docker-compose.yml (БЕЗ PostgreSQL)
             cat > docker-compose.yml << 'EOF'
-    services:
-      web:
-        image: ghcr.io/larasedova/alpina_gpt_builder:latest
-        env_file:
-          - .env
-        volumes:
-          - static_volume:/app/staticfiles/
-          - sqlite_db_volume:/app/db.sqlite3 # Том для SQLite
-        restart: unless-stopped
-
-      nginx:
-        image: nginx:1.25-alpine
-        volumes:
-          - ./nginx.conf:/etc/nginx/nginx.conf
-          - static_volume:/app/staticfiles/:ro
-        ports:
-          - "80:80"
-        depends_on:
-          - web
-        restart: unless-stopped
-
+services:
+  web:
+    image: ghcr.io/larasedova/alpina_gpt_builder:latest
+    env_file:
+      - .env
     volumes:
-      static_volume:
-      sqlite_db_volume: # Том для SQLite
-    EOF
+      - static_volume:/app/staticfiles/
+      - sqlite_db_volume:/app/db.sqlite3
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - static_volume:/app/staticfiles/:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+    restart: unless-stopped
+
+volumes:
+  static_volume:
+  sqlite_db_volume:
+EOF
+
             echo "Файл docker-compose.yml создан/обновлен."
 
             # 3. Создание/обновление nginx.conf
             cat > nginx.conf << 'EOF'
-    events {
-        worker_connections 1024;
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log /var/log/nginx/access.log main;
+    error_log /var/log/nginx/error.log;
+
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    upstream django {
+        server web:8000;
     }
 
-    http {
-        include /etc/nginx/mime.types;
-        default_type application/octet-stream;
+    server {
+        listen 80;
+        server_name _;
 
-        # Логирование
-        log_format main '$remote_addr - $remote_user [$time_local] "$request" '
-                        '$status $body_bytes_sent "$http_referer" '
-                        '"$http_user_agent" "$http_x_forwarded_for"';
-        access_log /var/log/nginx/access.log main;
-        error_log /var/log/nginx/error.log;
-
-        # Основные настройки
-        sendfile on;
-        tcp_nopush on;
-        tcp_nodelay on;
-        keepalive_timeout 65;
-        types_hash_max_size 2048;
-
-        # Gzip сжатие
-        gzip on;
-        gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-
-        # Upstream для Django приложения
-        upstream django {
-            server web:8000;
+        location /static/ {
+            alias /app/staticfiles/;
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            access_log off;
         }
 
-        # HTTP сервер
-        server {
-            listen 80;
-            server_name _;
+        location /media/ {
+            alias /app/media/;
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            access_log off;
+        }
 
-            # Статические файлы
-            location /static/ {
-                alias /app/staticfiles/;
-                expires 1y;
-                add_header Cache-Control "public, immutable";
-                access_log off;
-            }
-
-            # Медиа файлы (если используются)
-            location /media/ {
-                alias /app/media/;
-                expires 1y;
-                add_header Cache-Control "public, immutable";
-                access_log off;
-            }
-
-            # Django приложение
-            location / {
-                proxy_pass http://django;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-                proxy_set_header Host $host;
-                proxy_redirect off;
-
-                # Таймауты
-                proxy_connect_timeout 60s;
-                proxy_send_timeout 60s;
-                proxy_read_timeout 60s;
-
-                # Безопасность
-                proxy_set_header X-Real-IP $remote_addr;
-            }
-
-            # Health check (опционально, можно добавить в Django)
-            # location /health/ {
-            #     access_log off;
-            #     return 200 "healthy\n";
-            #     add_header Content-Type text/plain;
-            # }
+        location / {
+            proxy_pass http://django;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Host $host;
+            proxy_redirect off;
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+            proxy_set_header X-Real-IP $remote_addr;
         }
     }
-    EOF
+}
+EOF
+
             echo "Файл nginx.conf создан/обновлен."
 
             # 4. Создание/обновление .env
             cat > .env << EOF
-    SECRET_KEY=${{ secrets.SECRET_KEY }}
-    DEBUG=False
-    ALLOWED_HOSTS=${{ secrets.VPS_HOST }},localhost,127.0.0.1
-    OPENAI_API_KEY=demo-mode-no-key-required
-    EOF
+SECRET_KEY=${{ secrets.SECRET_KEY }}
+DEBUG=False
+ALLOWED_HOSTS=${{ secrets.VPS_HOST }},localhost,127.0.0.1
+OPENAI_API_KEY=demo-mode-no-key-required
+EOF
             echo "Файл .env создан/обновлен."
 
             # 5. Логин в GHCR на VPS
@@ -233,42 +160,8 @@ jobs:
             fi
             echo "✅ Новые образы скачаны."
 
-            # 8. Применение миграций (ВАЖНО!)
-            # Запускаем миграции в новом контейнере на основе образа сервиса web
-            # --rm удаляет контейнер после завершения
+            # 8. Применение миграций
             docker-compose run --rm web python manage.py migrate --noinput
             if [ $? -ne 0 ]; then
-              echo "❌ Ошибка при выполнении миграций"
-              exit 1
-            fi
-            echo "✅ Миграции применены."
-
-            # 9. Сборка статических файлов (ВАЖНО!)
-            # Собираем статику в новом контейнере на основе образа сервиса web
-            docker-compose run --rm web python manage.py collectstatic --noinput --clear
-            if [ $? -ne 0 ]; then
-              echo "❌ Ошибка при сборке статических файлов"
-              exit 1
-            fi
-            echo "✅ Статические файлы собраны."
-
-            # 10. Запуск контейнеров
-            docker-compose up -d
-            if [ $? -ne 0 ]; then
-              echo "❌ Ошибка при запуске контейнеров"
-              exit 1
-            fi
-            echo "✅ Контейнеры запущены."
-
-            # 11. Ждем немного, чтобы контейнеры стабилизировались
-            echo "⏳ Жду запуска приложения..."
-            sleep 20
-
-            # 12. Проверяем статус
-            docker-compose ps
-
-            # 13. Проверяем логи web контейнера для диагностики
-            echo "🔍 Логи контейнера web:"
-            docker-compose logs web
-
-            echo "🎉 Деплой завершён успешно!"
+              echo "❌ Ошибка при выполнении миграций
+      
