@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Копируем весь проект
 COPY . .
 
-# Создаем пользователя для безопасности
+# Создаем пользователя для безопасности (опционально)
 RUN useradd -m -r django && chown -R django /app
 USER django
 

@@ -17,27 +17,13 @@ DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # ===== БАЗА ДАННЫХ =====
-# Используем PostgreSQL в продакшене, SQLite в разработке
-if not DEBUG:
-    # ПРОДАКШЕН - PostgreSQL
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME', 'alpina_db'),
-            'USER': os.getenv('DB_USER', 'alpina_user'),
-            'PASSWORD': os.getenv('DB_PASSWORD', 'alpina_password123'),
-            'HOST': os.getenv('DB_HOST', 'db'),
-            'PORT': os.getenv('DB_PORT', '5432'),
-        }
+# ИСПОЛЬЗУЕМ ТОЛЬКО SQLITE ДЛЯ УЧЕБНОГО ПРОЕКТА
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3', # Путь внутри контейнера web
     }
-else:
-    # РАЗРАБОТКА - SQLite
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
+}
 
 # ===== ПРИЛОЖЕНИЯ И МИДДЛВАРЫ =====
 INSTALLED_APPS = [
@@ -113,7 +99,8 @@ USE_TZ = True
 
 # ===== СТАТИЧЕСКИЕ ФАЙЛЫ =====
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+# Путь внутри контейнера web, который будет смонтирован как том static_volume
+STATIC_ROOT = '/app/staticfiles/' # <-- ВАЖНО: именно так
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -140,19 +127,19 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
 ]
 
-# ===== OPENAI =====
+# ===== OPENAI (заглушка) =====
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', 'demo-mode-no-key-required')
 
-# ===== БЕЗОПАСНОСТЬ ДЛЯ ПРОДАКШЕНА =====
+# ===== БЕЗОПАСНОСТЬ ДЛЯ ПРОДАКШЕНА (опционально для учебного) =====
 if not DEBUG:
-    # HTTPS настройки
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
-    X_FRAME_OPTIONS = 'DENY'
+    # HTTPS настройки (опционально)
+    # SECURE_BROWSER_XSS_FILTER = True
+    # SECURE_CONTENT_TYPE_NOSNIFF = True
+    # X_FRAME_OPTIONS = 'DENY'
 
-    # CSRF настройки
-    CSRF_COOKIE_SECURE = True
-    SESSION_COOKIE_SECURE = True
+    # CSRF настройки (опционально)
+    # CSRF_COOKIE_SECURE = True
+    # SESSION_COOKIE_SECURE = True
 
 CSRF_TRUSTED_ORIGINS = [
                            f"http://{host}" for host in ALLOWED_HOSTS
@@ -160,7 +147,7 @@ CSRF_TRUSTED_ORIGINS = [
                            f"https://{host}" for host in ALLOWED_HOSTS
                        ]
 
-# ===== ЛОГИРОВАНИЕ ДЛЯ ПРОДАКШЕНА =====
+# ===== ЛОГИРОВАНИЕ ДЛЯ ПРОДАКШЕНА (опционально для учебного) =====
 if not DEBUG:
     LOGGING = {
         'version': 1,
