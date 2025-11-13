@@ -60,6 +60,25 @@ jobs:
           script_stop: true
           script: |
             # --- ШАГИ ДЛЯ "ИДЕАЛЬНОГО" ДЕПЛОЯ ---
+            # 0. Установка Docker и Docker Compose (если не установлены)
+            if ! command -v docker &> /dev/null; then
+              echo "Устанавливаю Docker..."
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sh get-docker.sh
+              usermod -aG docker $USER
+            fi
+            
+            if ! command -v docker-compose &> /dev/null; then
+              echo "Устанавливаю Docker Compose..."
+              curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              chmod +x /usr/local/bin/docker-compose
+              ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+            fi
+            
+            echo "✅ Docker и Docker Compose установлены"
+            docker --version
+            docker-compose --version
+
             # 1. Создание директории, если её нет
             VPS_DIR="/opt/alpina_gpt_builder"
             if [ ! -d "$VPS_DIR" ]; then
@@ -77,27 +96,41 @@ jobs:
             services:
               web:
                 image: ghcr.io/larasedova/alpina_gpt_builder:latest
+                container_name: alpina_web
+                command: >
+                  sh -c "python manage.py migrate --noinput &&
+                         python manage.py collectstatic --noinput &&
+                         gunicorn --bind 0.0.0.0:8000 bot_builder.wsgi:application"
                 env_file:
                   - .env
                 volumes:
-                  - static_volume:/app/staticfiles/
-                  - sqlite_db_volume:/app/db.sqlite3
+                  - static_volume:/app/staticfiles
+                  - sqlite_data:/app/
                 restart: unless-stopped
-            
+                networks:
+                  - alpina_network
+
               nginx:
                 image: nginx:1.25-alpine
+                container_name: alpina_nginx
                 volumes:
                   - ./nginx.conf:/etc/nginx/nginx.conf
-                  - static_volume:/app/staticfiles/:ro
+                  - static_volume:/app/staticfiles:ro
                 ports:
                   - "80:80"
                 depends_on:
                   - web
                 restart: unless-stopped
-            
+                networks:
+                  - alpina_network
+
             volumes:
               static_volume:
-              sqlite_db_volume:
+              sqlite_data:
+
+            networks:
+              alpina_network:
+                driver: bridge
             EOF
             echo "Файл docker-compose.yml создан/обновлен."
 
@@ -106,53 +139,55 @@ jobs:
             events {
                 worker_connections 1024;
             }
-            
+
             http {
                 include /etc/nginx/mime.types;
                 default_type application/octet-stream;
-            
+
                 # Логирование
                 log_format main '$remote_addr - $remote_user [$time_local] "$request" '
                                 '$status $body_bytes_sent "$http_referer" '
                                 '"$http_user_agent" "$http_x_forwarded_for"';
                 access_log /var/log/nginx/access.log main;
                 error_log /var/log/nginx/error.log;
-            
+
                 # Основные настройки
                 sendfile on;
                 tcp_nopush on;
                 tcp_nodelay on;
                 keepalive_timeout 65;
                 types_hash_max_size 2048;
-            
+
                 # Gzip сжатие
                 gzip on;
                 gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-            
+
                 # Upstream для Django приложения
                 upstream django {
                     server web:8000;
                 }
-            
+
                 # HTTP сервер
                 server {
                     listen 80;
                     server_name _;
-            
+
                     # Статические файлы
                     location /static/ {
                         alias /app/staticfiles/;
                         expires 1y;
                         add_header Cache-Control "public, immutable";
+                        access_log off;
                     }
-            
+
                     # Медиа файлы
                     location /media/ {
                         alias /app/media/;
                         expires 1y;
                         add_header Cache-Control "public, immutable";
+                        access_log off;
                     }
-            
+
                     # Django приложение
                     location / {
                         proxy_pass http://django;
@@ -160,11 +195,21 @@ jobs:
                         proxy_set_header X-Forwarded-Proto $scheme;
                         proxy_set_header Host $host;
                         proxy_redirect off;
-            
+
                         # Таймауты
                         proxy_connect_timeout 60s;
                         proxy_send_timeout 60s;
                         proxy_read_timeout 60s;
+
+                        # Безопасность
+                        proxy_set_header X-Real-IP $remote_addr;
+                    }
+
+                    # Health check
+                    location /health/ {
+                        access_log off;
+                        return 200 "healthy\n";
+                        add_header Content-Type text/plain;
                     }
                 }
             }
@@ -188,7 +233,11 @@ jobs:
             fi
             echo "✅ Успешно авторизован в ${{ env.REGISTRY }}."
 
-            # 6. Скачивание нового образа
+            # 6. Останавливаем старые контейнеры (если есть)
+            docker-compose down 2>/dev/null || true
+            echo "✅ Старые контейнеры остановлены"
+
+            # 7. Скачивание нового образа
             docker-compose pull
             if [ $? -ne 0 ]; then
               echo "❌ Ошибка при скачивании образов"
@@ -196,33 +245,28 @@ jobs:
             fi
             echo "✅ Новые образы скачаны."
 
-            # 7. Применение миграций (ВАЖНО!)
-            docker-compose run --rm web python manage.py migrate --noinput
-            if [ $? -ne 0 ]; then
-              echo "❌ Ошибка при выполнении миграций"
-              exit 1
-            fi
-            echo "✅ Миграции применены."
-
-            # 8. Сборка статических файлов (ВАЖНО!)
-            docker-compose run --rm web python manage.py collectstatic --noinput --clear
-            if [ $? -ne 0 ]; then
-              echo "❌ Ошибка при сборке статических файлов"
-              exit 1
-            fi
-            echo "✅ Статические файлы собраны."
-
-            # 9. Запуск/перезапуск контейнеров
-            docker-compose up -d --force-recreate
+            # 8. Запуск контейнеров
+            docker-compose up -d
             if [ $? -ne 0 ]; then
               echo "❌ Ошибка при запуске контейнеров"
               exit 1
             fi
-            echo "✅ Контейнеры запущены/перезапущены."
+            echo "✅ Контейнеры запущены."
 
-            # 10. Очистка старых образов (опционально)
-            docker image prune -f
+            # 9. Ждем запуска приложения
+            echo "⏳ Жду запуска приложения..."
+            sleep 30
+
+            # 10. Проверяем статус
+            docker-compose ps
+
+            # 11. Проверяем здоровье приложения
+            if curl -f http://localhost:8000/health/ > /dev/null 2>&1; then
+              echo "✅ Приложение запущено и отвечает"
+            else
+              echo "⚠️  Приложение запущено, но health check не прошел"
+              # Показываем логи для диагностики
+              docker-compose logs web
+            fi
 
             echo "🎉 Деплой завершён успешно!"
-            docker-compose ps
-            echo "✅ Деплой завершен!"
