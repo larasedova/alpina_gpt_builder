@@ -82,12 +82,12 @@ jobs:
             VPS_DIR="/opt/alpina_gpt_builder"
             if [ ! -d "$VPS_DIR" ]; then
               echo "Создаю директорию $VPS_DIR..."
-              mkdir -p $VPS_DIR
-              cd $VPS_DIR
+              mkdir -p "$VPS_DIR"
+              cd "$VPS_DIR"
               echo "Директория создана."
             else
               echo "Директория $VPS_DIR уже существует. Продолжаю..."
-              cd $VPS_DIR
+              cd "$VPS_DIR"
             fi
 
             # 2. Создание/обновление docker-compose.yml (БЕЗ PostgreSQL)
@@ -116,12 +116,12 @@ services:
 volumes:
   static_volume:
   sqlite_db_volume:
-EOF
+            EOF
             echo "Файл docker-compose.yml создан/обновлен."
 
             # 3. Создание/обновление nginx.conf
             cat > nginx.conf << 'EOF'
-events {
+    events {
     worker_connections 1024;
 }
 
@@ -202,7 +202,7 @@ EOF
             echo "Файл nginx.conf создан/обновлен."
 
             # 4. Создание/обновление .env
-            cat > .env << EOF
+            cat > .env << 'EOF'
 SECRET_KEY=${{ secrets.SECRET_KEY }}
 DEBUG=False
 ALLOWED_HOSTS=${{ secrets.VPS_HOST }},localhost,127.0.0.1
@@ -230,7 +230,7 @@ EOF
             fi
             echo "✅ Новые образы скачаны."
 
-            # 8. Применение миграций (ВАЖНО!)
+            # 8. Применение миграций
             docker-compose run --rm web python manage.py migrate --noinput
             if [ $? -ne 0 ]; then
               echo "❌ Ошибка при выполнении миграций"
@@ -238,7 +238,7 @@ EOF
             fi
             echo "✅ Миграции применены."
 
-            # 9. Сборка статических файлов (ВАЖНО!)
+            # 9. Сборка статических файлов
             docker-compose run --rm web python manage.py collectstatic --noinput --clear
             if [ $? -ne 0 ]; then
               echo "❌ Ошибка при сборке статических файлов"
@@ -254,14 +254,14 @@ EOF
             fi
             echo "✅ Контейнеры запущены."
 
-            # 11. Ждем немного, чтобы контейнеры стабилизировались
+            # 11. Ждем немного
             echo "⏳ Жду запуска приложения..."
             sleep 20
 
             # 12. Проверяем статус
             docker-compose ps
 
-            # 13. Проверяем логи web контейнера для диагностики
+            # 13. Проверяем логи
             echo "🔍 Логи контейнера web:"
             docker-compose logs web
 
