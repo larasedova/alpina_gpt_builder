@@ -60,6 +60,7 @@ jobs:
           script_stop: true
           script: |
             set -euxo pipefail
+            
             # --- ШАГИ ДЛЯ "ИДЕАЛЬНОГО" ДЕПЛОЯ ---
             # 0. Установка Docker и Docker Compose (если не установлены)
             if ! command -v docker &> /dev/null; then
@@ -79,17 +80,12 @@ jobs:
             docker --version
             docker-compose --version
 
-            # 1. Создание директории, если её нет
+            # 1. Создание директории (безопасно даже если уже существует)
             VPS_DIR="/opt/alpina_gpt_builder"
-            if [ ! -d "$VPS_DIR" ]; then
-              echo "Создаю директорию $VPS_DIR..."
-              mkdir -p "$VPS_DIR"
-              cd "$VPS_DIR"
-              echo "Директория создана."
-            else
-              echo "Директория $VPS_DIR уже существует. Продолжаю..."
-              cd "$VPS_DIR"
-            fi
+            echo "Гарантированно создаю директорию (если нужно): $VPS_DIR"
+            mkdir -p "$VPS_DIR"
+            cd "$VPS_DIR"
+            echo "✅ Перешли в $VPS_DIR"
 
             # 2. Создание/обновление docker-compose.yml (БЕЗ PostgreSQL)
             cat > docker-compose.yml << 'EOFCOMPOSE'
