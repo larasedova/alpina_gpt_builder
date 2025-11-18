@@ -113,7 +113,7 @@ services:
 volumes:
   static_volume:
   sqlite_db_volume:
-EOFCOMPOSE
+            EOFCOMPOSE
             echo "Файл docker-compose.yml создан/обновлен."
 
             # 3. Создание/обновление nginx.conf
