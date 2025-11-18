@@ -197,10 +197,10 @@ jobs:
             echo "Файл nginx.conf создан/обновлен."
 
             # 4. Создание/обновление .env
-            cat > .env << 'EOFENV'
-            SECRET_KEY=2yng0bNIlwgCifXrwbWlO7V2nFlcT5VnXD+Exm7ggyqeES9mKMr73UQry2bOxxkEex8=
+            cat > .env << EOFENV
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
             DEBUG=False
-            ALLOWED_HOSTS=92.51.38.191,localhost,127.0.0.1
+            ALLOWED_HOSTS=${{ secrets.VPS_HOST }},localhost,127.0.0.1
             OPENAI_API_KEY=demo-mode-no-key-required
             EOFENV
             
