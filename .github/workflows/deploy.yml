@@ -81,15 +81,9 @@ jobs:
 
             # 1. Создание директории, если её нет
             VPS_DIR="/opt/alpina_gpt_builder"
-            if [ ! -d "$VPS_DIR" ]; then
-              echo "Создаю директорию $VPS_DIR..."
-              mkdir -p "$VPS_DIR"
-              cd "$VPS_DIR"
-              echo "Директория создана."
-            else
-              echo "Директория $VPS_DIR уже существует. Продолжаю..."
-              cd "$VPS_DIR"
-            fi
+            mkdir -p "$VPS_DIR"
+            cd "$VPS_DIR"
+            echo "✅ Работаю в директории: $(pwd)"
 
             # 2. Создание/обновление docker-compose.yml (БЕЗ PostgreSQL)
             cat > docker-compose.yml << 'EOFCOMPOSE'
