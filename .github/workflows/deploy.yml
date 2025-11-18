@@ -202,11 +202,12 @@ jobs:
             echo "Файл nginx.conf создан/обновлен."
 
             # 4. Создание/обновление .env
-            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
-            echo "DEBUG=False" >> .env
-            echo "ALLOWED_HOSTS=${{ secrets.VPS_HOST }},localhost,127.0.0.1" >> .env
-            echo "OPENAI_API_KEY=demo-mode-no-key-required" >> .env
-            echo "Файл .env создан/обновлен."
+            cat > .env << 'EOFENV'
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+            DEBUG=False
+            ALLOWED_HOSTS=${{ secrets.VPS_HOST }},localhost,127.0.0.1
+            OPENAI_API_KEY=demo-mode-no-key-required
+            EOFENV
 
             # 5. Логин в GHCR на VPS
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin

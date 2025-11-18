@@ -26,6 +26,7 @@
   </component>
   <component name="HighlightingSettingsPerFile">
     <setting file="file://$PROJECT_DIR$/.github/workflows/deploy.yml" root0="SKIP_INSPECTION" />
+    <setting file="file://$PROJECT_DIR$/bots/views.py" root0="SKIP_INSPECTION" />
   </component>
   <component name="ProblemsViewState">
     <option name="selectedTabId" value="CurrentFile" />
