@@ -81,9 +81,9 @@ jobs:
 
             # 1. Создание директории, если её нет
             VPS_DIR="/opt/alpina_gpt_builder"
-            mkdir -p "$VPS_DIR"
-            cd "$VPS_DIR"
-            echo "✅ Работаю в директории: $(pwd)"
+			mkdir -p "$VPS_DIR"
+			cd "$VPS_DIR"
+			echo "✅ Работаю в директории: $(pwd)"
 
             # 2. Создание/обновление docker-compose.yml (БЕЗ PostgreSQL)
             cat > docker-compose.yml << 'EOFCOMPOSE'
@@ -197,12 +197,13 @@ jobs:
             echo "Файл nginx.conf создан/обновлен."
 
             # 4. Создание/обновление .env
-            echo "SECRET_KEY=$SECRET_KEY" > .env
-            echo "DEBUG=False" >> .env
-            echo "ALLOWED_HOSTS=$VPS_HOST,localhost,127.0.0.1" >> .env
-            echo "OPENAI_API_KEY=demo-mode-no-key-required" >> .env
-            echo "Файл .env создан/обновлен."
-
+            cat > .env << 'EOFENV'
+            SECRET_KEY=2yng0bNIlwgCifXrwbWlO7V2nFlcT5VnXD+Exm7ggyqeES9mKMr73UQry2bOxxkEex8=
+            DEBUG=False
+            ALLOWED_HOSTS=92.51.38.191,localhost,127.0.0.1
+            OPENAI_API_KEY=demo-mode-no-key-required
+            EOFENV
+            
             # 5. Логин в GHCR на VPS
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             if [ $? -ne 0 ]; then
