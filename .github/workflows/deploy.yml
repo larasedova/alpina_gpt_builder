@@ -89,31 +89,31 @@ jobs:
 
             # 2. Создание/обновление docker-compose.yml (БЕЗ PostgreSQL)
             cat > docker-compose.yml << 'EOFCOMPOSE'
-            services:
-              web:
-                image: ghcr.io/larasedova/alpina_gpt_builder:latest
-                env_file:
-                  - .env
-                volumes:
-                  - static_volume:/app/staticfiles/
-                  - sqlite_db_volume:/app/db.sqlite3
-                restart: unless-stopped
+services:
+  web:
+    image: ghcr.io/larasedova/alpina_gpt_builder:latest
+    env_file:
+      - .env
+    volumes:
+      - static_volume:/app/staticfiles/
+      - sqlite_db_volume:/app/db.sqlite3
+    restart: unless-stopped
 
-              nginx:
-                image: nginx:1.25-alpine
-                volumes:
-                  - ./nginx.conf:/etc/nginx/nginx.conf
-                  - static_volume:/app/staticfiles/:ro
-                ports:
-                  - "80:80"
-                depends_on:
-                  - web
-                restart: unless-stopped
+  nginx:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - static_volume:/app/staticfiles/:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+    restart: unless-stopped
 
-            volumes:
-              static_volume:
-              sqlite_db_volume:
-            EOFCOMPOSE
+volumes:
+  static_volume:
+  sqlite_db_volume:
+EOFCOMPOSE
             echo "Файл docker-compose.yml создан/обновлен."
 
             # 3. Создание/обновление nginx.conf
