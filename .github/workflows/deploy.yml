@@ -59,62 +59,61 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: true
           script: |
-            set -euxo pipefail
-            # --- ШАГИ ДЛЯ "ИДЕАЛЬНОГО" ДЕПЛОЯ ---
-            # 0. Установка Docker и Docker Compose (если не установлены)
+            # --- DEPLOYMENT STEPS ---
+            # 0. Install Docker and Docker Compose if not installed
             if ! command -v docker &> /dev/null; then
-              echo "Устанавливаю Docker..."
+              echo "Installing Docker..."
               curl -fsSL https://get.docker.com -o get-docker.sh
               sh get-docker.sh
             fi
 
             if ! command -v docker-compose &> /dev/null; then
-              echo "Устанавливаю Docker Compose..."
+              echo "Installing Docker Compose..."
               curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
               chmod +x /usr/local/bin/docker-compose
               ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
             fi
 
-            echo "✅ Docker и Docker Compose установлены"
+            echo "✅ Docker and Docker Compose installed"
             docker --version
             docker-compose --version
-
-            # 1. Создание директории (безопасно даже если уже существует)
+      
+            # 1. Create directory and enter it
             VPS_DIR="/opt/alpina_gpt_builder"
             mkdir -p "$VPS_DIR"
             cd "$VPS_DIR"
-            echo "✅ Рабочая директория: $(pwd)"
-
-            # 2. Создание/обновление docker-compose.yml (БЕЗ PostgreSQL)
+            echo "✅ Working in directory: $(pwd)"
+      
+            # 2. Create/update docker-compose.yml - БЕЗ ЛИШНИХ ОТСТУПОВ
             cat > docker-compose.yml << 'EOFCOMPOSE'
-            services:
-              web:
-                image: ghcr.io/larasedova/alpina_gpt_builder:latest
-                env_file:
-                  - .env
-                volumes:
-                  - static_volume:/app/staticfiles/
-                  - sqlite_db_volume:/app/db.sqlite3
-                restart: unless-stopped
+services:
+  web:
+    image: ghcr.io/larasedova/alpina_gpt_builder:latest
+    env_file:
+      - .env
+    volumes:
+      - static_volume:/app/staticfiles/
+      - sqlite_db_volume:/app/db.sqlite3
+    restart: unless-stopped
 
-              nginx:
-                image: nginx:1.25-alpine
-                volumes:
-                  - ./nginx.conf:/etc/nginx/nginx.conf
-                  - static_volume:/app/staticfiles/:ro
-                ports:
-                  - "80:80"
-                depends_on:
-                  - web
-                restart: unless-stopped
+  nginx:
+    image: nginx:1.25-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - static_volume:/app/staticfiles/:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+    restart: unless-stopped
 
-            volumes:
-              static_volume:
-              sqlite_db_volume:
-            EOFCOMPOSE
-            echo "Файл docker-compose.yml создан/обновлен."
+volumes:
+  static_volume:
+  sqlite_db_volume:
+      EOFCOMPOSE
+      echo "docker-compose.yml created/updated"
 
-            # 3. Создание/обновление nginx.conf
+      # 3. Создание/обновление nginx.conf
             cat > nginx.conf << 'EOFNGINX'
             events {
               worker_connections 1024;
