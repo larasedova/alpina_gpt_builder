@@ -81,9 +81,15 @@ jobs:
 
             # 1. Создание директории, если её нет
             VPS_DIR="/opt/alpina_gpt_builder"
-			mkdir -p "$VPS_DIR"
-			cd "$VPS_DIR"
-			echo "✅ Работаю в директории: $(pwd)"
+            if [ ! -d "$VPS_DIR" ]; then
+              echo "Создаю директорию $VPS_DIR..."
+              mkdir -p "$VPS_DIR"
+              cd "$VPS_DIR"
+              echo "Директория создана."
+            else
+              echo "Директория $VPS_DIR уже существует. Продолжаю..."
+              cd "$VPS_DIR"
+            fi
 
             # 2. Создание/обновление docker-compose.yml (БЕЗ PostgreSQL)
             cat > docker-compose.yml << 'EOFCOMPOSE'
@@ -197,9 +203,9 @@ jobs:
             echo "Файл nginx.conf создан/обновлен."
 
             # 4. Создание/обновление .env
-            echo "SECRET_KEY=$SECRET_KEY" > .env
+            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
             echo "DEBUG=False" >> .env
-            echo "ALLOWED_HOSTS=$VPS_HOST,localhost,127.0.0.1" >> .env
+            echo "ALLOWED_HOSTS=${{ secrets.VPS_HOST }},localhost,127.0.0.1" >> .env
             echo "OPENAI_API_KEY=demo-mode-no-key-required" >> .env
             echo "Файл .env создан/обновлен."
 
