@@ -167,4 +167,9 @@ jobs:
             docker-compose down 2>/dev/null || true
             docker-compose pull
             docker-compose run --rm web python manage.py migrate --noinput
-            docker-compose run --rm web python manage.py collectstatic --
+            docker-compose run --rm web python manage.py collectstatic --noinput --clear
+            docker-compose up -d
+            
+            sleep 20
+            docker-compose ps
+            echo "🎉 Деплой завершён успешно!"
