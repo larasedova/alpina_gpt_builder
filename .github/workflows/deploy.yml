@@ -52,6 +52,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: true
           script: |
+            set -euxo pipefail
             # Установка Docker
             if ! command -v docker &> /dev/null; then
               echo "Installing Docker..."
@@ -76,10 +77,82 @@ jobs:
             mkdir -p "$VPS_DIR"
             cd "$VPS_DIR"
 
-            # Копируем файлы из репозитория (GitHub Actions кладёт код в /home/runner/work/<repo>/<repo>/)
-            REPO_PATH="/home/runner/work/alpina_gpt_builder/alpina_gpt_builder"
-            cp "$REPO_PATH/docker-compose.yml" .
-            cp "$REPO_PATH/nginx/nginx.conf" .
+            # Создание docker-compose.yml
+            cat > docker-compose.yml <<'EOFCOMPOSE'
+            services:
+              web:
+                image: ghcr.io/larasedova/alpina_gpt_builder:latest
+                env_file:
+                  - .env
+                volumes:
+                  - static_volume:/app/staticfiles/
+                  - sqlite_db_volume:/app/db.sqlite3
+                restart: unless-stopped
+            
+              nginx:
+                image: nginx:1.25-alpine
+                volumes:
+                  - ./nginx.conf:/etc/nginx/nginx.conf
+                  - static_volume:/app/staticfiles/:ro
+                ports:
+                  - "80:80"
+                depends_on:
+                  - web
+                restart: unless-stopped
+            
+            volumes:
+              static_volume:
+              sqlite_db_volume:
+            EOFCOMPOSE
+            
+            # Создание nginx.conf
+            cat > nginx.conf <<'EOFNGINX'
+            events {
+              worker_connections 1024;
+            }
+            
+            http {
+              include /etc/nginx/mime.types;
+              default_type application/octet-stream;
+              sendfile on;
+              tcp_nopush on;
+              tcp_nodelay on;
+              keepalive_timeout 65;
+              types_hash_max_size 2048;
+            
+              gzip on;
+              gzip_types text/plain text/css application/json application/javascript;
+            
+              upstream django {
+                server web:8000;
+              }
+            
+              server {
+                listen 80;
+                server_name _;
+            
+                location /static/ {
+                  alias /app/staticfiles/;
+                  expires 1y;
+                  access_log off;
+                }
+            
+                location / {
+                  proxy_pass http://django;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+                }
+            
+                location /health/ {
+                  access_log off;
+                  return 200 "healthy\n";
+                  add_header Content-Type text/plain;
+                }
+              }
+            }
+            EOFNGINX
 
             # Создаём .env
             echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
