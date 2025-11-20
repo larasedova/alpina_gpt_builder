@@ -1,69 +1,24 @@
-# docker-compose.yml (новый для SQLite)
-# Убираем устаревшую версию
-# version: '3.8' # <-- УДАЛЕНА
-
 services:
-  # Убираем сервис 'db' (PostgreSQL)
-  # db:
-  #   image: postgres:15-alpine
-  #   container_name: alpina_db
-  #   environment:
-  #     POSTGRES_DB: alpina_db
-  #     POSTGRES_USER: alpina_user
-  #     POSTGRES_PASSWORD: alpina_password123
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   restart: unless-stopped
-  #   networks:
-  #     - alpina_network
-
   web:
-    # Убираем build: . и container_name, используем image из GHCR
-    image: ghcr.io/larasedova/alpina_gpt_builder:latest # <-- Используем образ из GHCR
-    # container_name: alpina_web # <-- УДАЛЕН (Docker Compose сам генерирует имя)
-    # Убираем command, который запускает и migrate, и gunicorn одновременно
-    # command: > ...
+    image: ghcr.io/larasedova/alpina_gpt_builder:latest
     env_file:
       - .env
     volumes:
-      # Убираем media_volume, если не используется
-      # - media_volume:/app/media # <-- ОПЦИОНАЛЬНО УДАЛИТЬ
-      - static_volume:/app/staticfiles/ # <-- Путь внутри контейнера, соответствует STATIC_ROOT
-      # Добавляем том для SQLite базы данных
+      - static_volume:/app/staticfiles/
       - sqlite_db_volume:/app/db.sqlite3
-    # Убираем expose и depends_on
-    # expose:
-    #   - "8000"
-    # depends_on:
-    #   - db # <-- УДАЛЕНО (т.к. db больше нет)
     restart: unless-stopped
-    # networks:
-    #   - alpina_network # <-- Опционально, если не указываете networks, используется default
 
   nginx:
     image: nginx:1.25-alpine
     volumes:
-      # Путь к nginx.conf должен быть относительно директории, откуда запускается docker-compose
-      # В deploy.yml мы кладём его в /opt/alpina_gpt_builder/
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      # Монтируем static_volume как read-only для nginx
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
       - static_volume:/app/staticfiles/:ro
-      # - media_volume:/app/media:ro # <-- ОПЦИОНАЛЬНО УДАЛИТЬ
     ports:
       - "80:80"
     depends_on:
       - web
     restart: unless-stopped
-    # networks:
-    #   - alpina_network # <-- Опционально
 
 volumes:
-  # postgres_data: # <-- УДАЛЕНО
   static_volume:
-  # media_volume: # <-- ОПЦИОНАЛЬНО УДАЛИТЬ
-  # Добавляем том для SQLite
   sqlite_db_volume:
-
-# networks:
-#   alpina_network: # <-- Опционально
-#     driver: bridge
