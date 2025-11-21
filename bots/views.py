@@ -10,7 +10,7 @@ from .serializers import (
     BotExecutionSerializer, ChatSerializer
 )
 from .services import generate_gpt_response, validate_gpt_config, test_gpt_connection
-
+from django.http import HttpResponse
 
 class BotViewSet(viewsets.ModelViewSet):
     """
@@ -238,3 +238,40 @@ def test_bot_creation(request):
         'bot_name': demo_bot.name,
         'demo_mode': True
     })
+
+
+def home(request):
+    return HttpResponse("""
+    <html>
+    <head>
+        <title>Alpina GPT Builder</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .status { color: #28a745; font-weight: bold; }
+            .header { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+            .links { margin-top: 20px; }
+            .links a { display: inline-block; margin: 5px 10px 5px 0; padding: 10px 15px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; }
+            .links a:hover { background: #2980b9; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1 class="header">🤖 Alpina GPT Builder</h1>
+            <p class="status">✅ Приложение успешно развернуто!</p>
+            <p><strong>🌐 Сервер:</strong> 92.51.38.191</p>
+            <p><strong>🚀 Статус:</strong> <span class="status">Работает</span></p>
+
+            <div class="links">
+                <h3>Доступные разделы:</h3>
+                <a href="/api/">📊 REST API</a>
+                <a href="/admin/">⚙️ Админка Django</a>
+            </div>
+
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+                <small>Время развертывания: 21.11.2025</small>
+            </div>
+        </div>
+    </body>
+    </html>
+    """)
