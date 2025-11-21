@@ -141,7 +141,7 @@ if not DEBUG:
     # CSRF_COOKIE_SECURE = True
     # SESSION_COOKIE_SECURE = True
 
-CSRF_TRUSTED_ORIGINS = [
+    CSRF_TRUSTED_ORIGINS = [
                            f"http://{host}" for host in ALLOWED_HOSTS
                        ] + [
                            f"https://{host}" for host in ALLOWED_HOSTS
