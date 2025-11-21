@@ -4,10 +4,9 @@ services:
     env_file:
       - .env
     volumes:
-      - static_volume:/app/staticfiles/
-      - sqlite_db_volume:/app/db.sqlite3
+      - static_volume:/app/staticfiles
+      - sqlite_db_volume:/app/db  # ← монтируем ПАПКУ, не файл
     restart: unless-stopped
-    user: "1000:1000"
 
   nginx:
     image: nginx:1.25-alpine
